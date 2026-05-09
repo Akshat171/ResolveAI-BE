@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -75,6 +75,112 @@ async def get_overview(
         "escalations": escalation_count,
         "resolution_rate": round(resolution_rate, 1),
         "avg_confidence": round(avg_confidence, 2) if avg_confidence else None,
+        "period_days": days,
+    }
+
+
+@router.get("/summary")
+async def get_summary(
+    days: int = Query(30, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    tenant_id = current_user.tenant_id
+
+    total_result = await db.execute(
+        select(func.count(Conversation.id)).where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+        )
+    )
+    total = total_result.scalar() or 0
+
+    resolved_result = await db.execute(
+        select(func.count(Conversation.id)).where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+            Conversation.status == "resolved",
+        )
+    )
+    resolved = resolved_result.scalar() or 0
+
+    escalated_result = await db.execute(
+        select(func.count(Conversation.id)).where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+            Conversation.status == "escalated",
+        )
+    )
+    escalated = escalated_result.scalar() or 0
+
+    active_result = await db.execute(
+        select(func.count(Conversation.id)).where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+            Conversation.status == "active",
+        )
+    )
+    active = active_result.scalar() or 0
+
+    avg_conf_result = await db.execute(
+        select(func.avg(Message.confidence_score)).where(
+            Message.tenant_id == tenant_id,
+            Message.role == "ai",
+            Message.created_at >= since,
+            Message.confidence_score.isnot(None),
+        )
+    )
+    avg_confidence = avg_conf_result.scalar()
+
+    avg_msgs_result = await db.execute(
+        select(func.avg(
+            select(func.count(Message.id))
+            .where(Message.conversation_id == Conversation.id)
+            .scalar_subquery()
+        )).where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+        )
+    )
+    avg_messages = avg_msgs_result.scalar()
+
+    # Conversations by channel
+    channel_result = await db.execute(
+        select(Conversation.channel, func.count(Conversation.id).label("count"))
+        .where(
+            Conversation.tenant_id == tenant_id,
+            Conversation.created_at >= since,
+        )
+        .group_by(Conversation.channel)
+        .order_by(func.count(Conversation.id).desc())
+    )
+    by_channel = [{"channel": row.channel, "count": row.count} for row in channel_result.fetchall()]
+
+    # Conversations by day (last `days` days)
+    day_result = await db.execute(
+        text("""
+            SELECT DATE_TRUNC('day', created_at)::date AS date, COUNT(*) AS count
+            FROM conversations
+            WHERE tenant_id = :tenant_id AND created_at >= :since
+            GROUP BY DATE_TRUNC('day', created_at)::date
+            ORDER BY DATE_TRUNC('day', created_at)::date
+        """),
+        {"tenant_id": str(tenant_id), "since": since},
+    )
+    by_day = [{"date": str(row.date), "count": row.count} for row in day_result.fetchall()]
+
+    return {
+        "total_conversations": total,
+        "resolved_conversations": resolved,
+        "escalated_conversations": escalated,
+        "active_conversations": active,
+        "avg_confidence": round(float(avg_confidence), 2) if avg_confidence else None,
+        "avg_messages_per_conversation": round(float(avg_messages), 1) if avg_messages else None,
+        "resolution_rate": round(resolved / total, 3) if total > 0 else None,
+        "escalation_rate": round(escalated / total, 3) if total > 0 else None,
+        "conversations_by_channel": by_channel,
+        "conversations_by_day": by_day,
         "period_days": days,
     }
 

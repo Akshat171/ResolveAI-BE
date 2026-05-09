@@ -25,6 +25,7 @@ class Conversation(BaseModel):
     )
     email_inbox_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("email_inboxes.id", ondelete="SET NULL"), nullable=True)
     email_subject: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    whatsapp_inbox_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("whatsapp_inboxes.id", ondelete="SET NULL"), nullable=True)
     resolution_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     confidence_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)

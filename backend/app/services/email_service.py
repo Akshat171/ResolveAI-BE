@@ -90,10 +90,16 @@ async def send_email(
         hostname=inbox.smtp_host,
         port=inbox.smtp_port,
         username=inbox.smtp_username,
-        password=inbox.smtp_password,
+        password=_clean_password(inbox.smtp_password),
         start_tls=inbox.smtp_use_tls,
     )
     return msg_id
+
+
+def _clean_password(password: str) -> str:
+    """Strip spaces and non-ASCII characters — Gmail app passwords are displayed
+    with spaces but must be sent without them."""
+    return "".join(c for c in password if c.isascii() and not c.isspace())
 
 
 def _fetch_new_emails(inbox: EmailInbox) -> list[dict]:
@@ -102,11 +108,15 @@ def _fetch_new_emails(inbox: EmailInbox) -> list[dict]:
     try:
         ssl = inbox.imap_use_ssl
         with IMAPClient(inbox.imap_host, port=inbox.imap_port, ssl=ssl) as client:
-            client.login(inbox.imap_username, inbox.imap_password)
+            client.login(inbox.imap_username, _clean_password(inbox.imap_password))
             client.select_folder("INBOX")
-            uids = client.search(["UNSEEN"])
+            # Only fetch emails received since this inbox was created (ignore old backlog)
+            since_date = inbox.created_at.date()
+            uids = client.search(["UNSEEN", "SINCE", since_date])
             if not uids:
                 return results
+            # Cap at 10 most recent per poll
+            uids = uids[-10:]
             messages = client.fetch(uids, ["RFC822", "FLAGS"])
             for uid, data in messages.items():
                 raw = data[b"RFC822"]
@@ -116,6 +126,17 @@ def _fetch_new_emails(inbox: EmailInbox) -> list[dict]:
                 message_id = msg.get("Message-ID", f"<uid-{uid}@unknown>").strip()
                 in_reply_to = (msg.get("In-Reply-To") or "").strip()
                 references = (msg.get("References") or "").strip()
+                # Skip marketing/bulk/automated emails
+                if msg.get("List-Unsubscribe") or msg.get("List-ID"):
+                    continue
+                auto_submitted = (msg.get("Auto-Submitted") or "").lower()
+                if auto_submitted and auto_submitted != "no":
+                    continue
+                if "no-reply" in from_email or "noreply" in from_email or "donotreply" in from_email:
+                    continue
+                if "newsletter" in (msg.get("X-Mailer") or "").lower():
+                    continue
+
                 body = _extract_text_body(msg)
                 body = _strip_reply_history(body)
                 if not body:
@@ -168,6 +189,19 @@ async def _handle_inbound_email(inbox: EmailInbox, em: dict, db: AsyncSession):
     from app.services.chat_service import get_ai_response
     from app.services.emotion_service import detect_emotion, is_negative
     from app.services.escalation_service import create_escalation
+
+    # Truncate body to 3000 chars to stay within embedding token limits
+    em = {**em, "body": em["body"][:3000]}
+
+    # Deduplication — skip if we already processed this exact email
+    existing = await db.execute(
+        select(Message).where(
+            Message.tenant_id == inbox.tenant_id,
+            Message.email_message_id == em["message_id"],
+        )
+    )
+    if existing.scalar_one_or_none():
+        return  # already processed
 
     conversation = None
 
@@ -236,6 +270,7 @@ async def _handle_inbound_email(inbox: EmailInbox, em: dict, db: AsyncSession):
         role="visitor",
         content=em["body"],
         emotion=emotion,
+        email_message_id=em["message_id"],
     )
     db.add(visitor_msg)
     await db.flush()

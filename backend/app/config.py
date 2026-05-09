@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
 
+    # System email (for verification, password reset, etc.)
+    system_email_host: str = ""
+    system_email_port: int = 587
+    system_email_username: str = ""
+    system_email_password: str = ""
+    system_email_from: str = "ResolvAI <noreply@resolvai.com>"
+    frontend_url: str = "http://localhost:3000"
+
     @property
     def cors_origins_list(self) -> List[str]:
         return json.loads(self.cors_origins)

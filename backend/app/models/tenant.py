@@ -21,3 +21,5 @@ class Tenant(BaseModel):
     knowledge_bases = relationship("KnowledgeBase", back_populates="tenant", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="tenant", cascade="all, delete-orphan")
     email_inboxes = relationship("EmailInbox", back_populates="tenant", cascade="all, delete-orphan")
+    whatsapp_inboxes = relationship("WhatsAppInbox", back_populates="tenant", cascade="all, delete-orphan")
+    canned_responses = relationship("CannedResponse", back_populates="tenant", cascade="all, delete-orphan")

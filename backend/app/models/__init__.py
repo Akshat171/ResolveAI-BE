@@ -9,6 +9,8 @@ from app.models.message import Message
 from app.models.escalation import Escalation
 from app.models.usage_record import UsageRecord
 from app.models.email_inbox import EmailInbox
+from app.models.whatsapp_inbox import WhatsAppInbox
+from app.models.canned_response import CannedResponse
 
 __all__ = [
     "Tenant",
@@ -22,4 +24,6 @@ __all__ = [
     "Escalation",
     "UsageRecord",
     "EmailInbox",
+    "WhatsAppInbox",
+    "CannedResponse",
 ]

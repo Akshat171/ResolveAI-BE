@@ -10,6 +10,8 @@ from app.api.v1.api_keys import router as api_keys_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.health import router as health_router
 from app.api.v1.email import router as email_router
+from app.api.v1.whatsapp import router as whatsapp_router
+from app.api.v1.canned_responses import router as canned_responses_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -23,3 +25,5 @@ api_router.include_router(api_keys_router)
 api_router.include_router(analytics_router)
 api_router.include_router(health_router)
 api_router.include_router(email_router)
+api_router.include_router(whatsapp_router)
+api_router.include_router(canned_responses_router)

@@ -31,5 +31,6 @@ class UserResponse(BaseModel):
     full_name: Optional[str]
     role: str
     tenant_id: uuid.UUID
+    is_email_verified: bool = False
 
     model_config = {"from_attributes": True}

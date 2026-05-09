@@ -23,6 +23,7 @@ class Message(BaseModel):
     emotion: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     token_usage: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    email_message_id: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, index=True)
 
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")

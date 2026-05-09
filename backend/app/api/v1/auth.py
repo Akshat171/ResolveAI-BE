@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import re
+import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -24,8 +28,11 @@ from app.schemas.auth import (
     UserResponse,
 )
 from app.dependencies import get_current_user
+from app.services.system_email_service import send_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+VERIFICATION_TOKEN_EXPIRE_HOURS = 24
 
 
 def slugify(text: str) -> str:
@@ -33,6 +40,12 @@ def slugify(text: str) -> str:
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)
     return text[:100]
+
+
+def _make_verification_token() -> tuple[str, datetime]:
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_TOKEN_EXPIRE_HOURS)
+    return token, expires_at
 
 
 @router.post("/signup", response_model=TokenResponse)
@@ -44,7 +57,6 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
 
     # Create tenant
     slug = slugify(request.company_name)
-    # Ensure unique slug
     existing = await db.execute(select(Tenant).where(Tenant.slug == slug))
     if existing.scalar_one_or_none():
         slug = f"{slug}-{uuid.uuid4().hex[:6]}"
@@ -56,23 +68,33 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
             "widget_color": "#6366f1",
             "widget_position": "bottom-right",
             "greeting_message": "Hi! How can I help you today?",
+            "onboarding_completed": False,
         },
     )
     db.add(tenant)
     await db.flush()
 
-    # Create owner user
+    # Generate verification token
+    token, expires_at = _make_verification_token()
+
+    # Create owner user (unverified)
     user = User(
         tenant_id=tenant.id,
         email=request.email,
         password_hash=hash_password(request.password),
         full_name=request.full_name,
         role="owner",
+        is_email_verified=False,
+        email_verification_token=token,
+        email_verification_expires_at=expires_at,
     )
     db.add(user)
     await db.flush()
+    await db.commit()
 
-    # Generate tokens
+    # Send verification email (non-blocking — don't fail signup if email fails)
+    await send_verification_email(request.email, request.full_name, token)
+
     token_data = {"sub": str(user.id), "tenant_id": str(tenant.id), "role": user.role}
     return TokenResponse(
         access_token=create_access_token(token_data),
@@ -121,3 +143,46 @@ async def refresh_token(request: RefreshRequest, db: AsyncSession = Depends(get_
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    """Verify email address via token from the verification email."""
+    result = await db.execute(
+        select(User).where(User.email_verification_token == token)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise BadRequestError("Invalid or expired verification link")
+
+    if user.is_email_verified:
+        return {"detail": "Email already verified"}
+
+    if user.email_verification_expires_at and user.email_verification_expires_at < datetime.now(timezone.utc):
+        raise BadRequestError("Verification link has expired. Please request a new one.")
+
+    user.is_email_verified = True
+    user.email_verification_token = None
+    user.email_verification_expires_at = None
+    await db.commit()
+
+    return {"detail": "Email verified successfully"}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resend the email verification link."""
+    if current_user.is_email_verified:
+        return {"detail": "Email already verified"}
+
+    token, expires_at = _make_verification_token()
+    current_user.email_verification_token = token
+    current_user.email_verification_expires_at = expires_at
+    await db.commit()
+
+    await send_verification_email(current_user.email, current_user.full_name or "", token)
+    return {"detail": "Verification email sent"}
