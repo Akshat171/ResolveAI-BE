@@ -52,7 +52,7 @@ export function Widget({ apiKey, position, apiUrl }: WidgetProps) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [config, setConfig] = useState({
     tenant_name: "Support",
-    widget_color: "#6366f1",
+    widget_color: "#0B6E6B",
     greeting_message: "Hi! How can I help you today?",
     proactive_enabled: true,
     proactive_message: "👋 Need help? I'm here!",
@@ -279,7 +279,9 @@ export function Widget({ apiKey, position, apiUrl }: WidgetProps) {
             class="resolvai-proactive-close"
             onClick={(e) => { e.stopPropagation(); setShowProactive(false); }}
           >
-            ✕
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M8 2L2 8M2 2l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
           </button>
           {visitorProfile?.is_returning
             ? `Welcome back${visitorProfile.visitor_name ? `, ${visitorProfile.visitor_name}` : ""}! Need help with anything?`
@@ -290,36 +292,60 @@ export function Widget({ apiKey, position, apiUrl }: WidgetProps) {
       {/* Chat window */}
       {isOpen && (
         <div class="resolvai-window">
-          <div
-            class="resolvai-header"
-            style={{ backgroundColor: config.widget_color }}
-          >
-            <h3>{config.tenant_name}</h3>
-            <button onClick={() => setIsOpen(false)}>&times;</button>
+          <div class="resolvai-header" style={{ background: `linear-gradient(135deg, ${config.widget_color}, #064F4D)` }}>
+            <div class="resolvai-header-left">
+              <div class="resolvai-avatar">R</div>
+              <div>
+                <div class="resolvai-header-name">{config.tenant_name}</div>
+                <div class="resolvai-header-status">
+                  <span class="resolvai-status-dot" />
+                  AI Support · Online
+                </div>
+              </div>
+            </div>
+            <button class="resolvai-close-btn" onClick={() => setIsOpen(false)}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
           </div>
 
           <div class="resolvai-messages">
             {messages.length === 0 && (
-              <div class="resolvai-greeting">
-                {visitorProfile?.is_returning
-                  ? buildReturningGreeting(visitorProfile, config.greeting_message)
-                  : config.greeting_message}
+              <div class="resolvai-greeting-wrap">
+                <div class="resolvai-greeting-icon">💬</div>
+                <div class="resolvai-greeting-text">
+                  {visitorProfile?.is_returning
+                    ? buildReturningGreeting(visitorProfile, config.greeting_message)
+                    : config.greeting_message}
+                </div>
               </div>
             )}
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                class={`resolvai-msg ${msg.role}`}
-                style={
-                  msg.role === "visitor"
-                    ? { backgroundColor: config.widget_color }
-                    : undefined
-                }
-              >
-                {msg.content}
+              <div key={msg.id} class={`resolvai-msg-wrap ${msg.role}`}>
+                {(msg.role === "ai" || msg.role === "agent") && (
+                  <div class="resolvai-ai-avatar">AI</div>
+                )}
+                <div
+                  class={`resolvai-msg ${msg.role}`}
+                  style={
+                    msg.role === "visitor"
+                      ? { background: `linear-gradient(135deg, ${config.widget_color}, #064F4D)` }
+                      : undefined
+                  }
+                >
+                  {msg.content}
+                </div>
               </div>
             ))}
-            {typing && <div class="resolvai-typing">Typing...</div>}
+            {typing && (
+              <div class="resolvai-msg-wrap ai">
+                <div class="resolvai-ai-avatar">AI</div>
+                <div class="resolvai-typing">
+                  <span /><span /><span />
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
@@ -329,16 +355,20 @@ export function Widget({ apiKey, position, apiUrl }: WidgetProps) {
               value={input}
               onInput={(e) => setInput((e.target as HTMLInputElement).value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Type a message..."
+              placeholder="Type a message…"
             />
             <button
               onClick={sendMessage}
               disabled={sending || !input.trim()}
-              style={{ backgroundColor: config.widget_color }}
+              class="resolvai-send-btn"
+              style={{ background: `linear-gradient(135deg, ${config.widget_color}, #064F4D)` }}
             >
-              &#x27A4;
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8h12M8 2l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
           </div>
+          <div class="resolvai-footer">Powered by <strong>ResolvAI</strong></div>
         </div>
       )}
 
