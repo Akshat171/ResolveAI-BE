@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import type { KnowledgeBase, KnowledgeItem } from "@/types";
-import { BookOpen, Plus, Upload, Globe, FileText, Trash2, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Upload, Globe, FileText, Trash2, Loader2, X, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function KnowledgeBasePage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -23,14 +24,9 @@ export default function KnowledgeBasePage() {
     try {
       const res = await api.get("/knowledge-bases");
       setKnowledgeBases(res.data);
-      if (res.data.length > 0 && !selectedKB) {
-        setSelectedKB(res.data[0]);
-      }
-    } catch (err) {
-      console.error("Failed to fetch KBs", err);
-    } finally {
-      setLoading(false);
-    }
+      if (res.data.length > 0 && !selectedKB) setSelectedKB(res.data[0]);
+    } catch {}
+    finally { setLoading(false); }
   }, [selectedKB]);
 
   const fetchItems = useCallback(async () => {
@@ -38,9 +34,7 @@ export default function KnowledgeBasePage() {
     try {
       const res = await api.get(`/knowledge-bases/${selectedKB.id}/items`);
       setItems(res.data);
-    } catch (err) {
-      console.error("Failed to fetch items", err);
-    }
+    } catch {}
   }, [selectedKB]);
 
   useEffect(() => { fetchKBs(); }, [fetchKBs]);
@@ -52,30 +46,19 @@ export default function KnowledgeBasePage() {
       const res = await api.post("/knowledge-bases", { name: newKBName });
       setKnowledgeBases((prev) => [res.data, ...prev]);
       setSelectedKB(res.data);
-      setNewKBName("");
-      setShowCreateKB(false);
-    } catch (err) {
-      console.error("Failed to create KB", err);
-    }
+      setNewKBName(""); setShowCreateKB(false);
+    } catch {}
   };
 
   const addText = async () => {
     if (!selectedKB || !textTitle.trim() || !textContent.trim()) return;
     setUploading(true);
     try {
-      await api.post(`/knowledge-bases/${selectedKB.id}/items/text`, {
-        title: textTitle,
-        content: textContent,
-      });
-      setTextTitle("");
-      setTextContent("");
-      setShowAddContent(null);
+      await api.post(`/knowledge-bases/${selectedKB.id}/items/text`, { title: textTitle, content: textContent });
+      setTextTitle(""); setTextContent(""); setShowAddContent(null);
       fetchItems();
-    } catch (err) {
-      console.error("Failed to add text", err);
-    } finally {
-      setUploading(false);
-    }
+    } catch {}
+    finally { setUploading(false); }
   };
 
   const crawlUrls = async () => {
@@ -84,14 +67,9 @@ export default function KnowledgeBasePage() {
     try {
       const urlList = urls.split("\n").map((u) => u.trim()).filter(Boolean);
       await api.post(`/knowledge-bases/${selectedKB.id}/items/crawl`, { urls: urlList });
-      setUrls("");
-      setShowAddContent(null);
-      fetchItems();
-    } catch (err) {
-      console.error("Failed to crawl", err);
-    } finally {
-      setUploading(false);
-    }
+      setUrls(""); setShowAddContent(null); fetchItems();
+    } catch {}
+    finally { setUploading(false); }
   };
 
   const uploadFile = async (file: File) => {
@@ -104,11 +82,8 @@ export default function KnowledgeBasePage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       fetchItems();
-    } catch (err) {
-      console.error("Failed to upload", err);
-    } finally {
-      setUploading(false);
-    }
+    } catch {}
+    finally { setUploading(false); }
   };
 
   const deleteItem = async (itemId: string) => {
@@ -116,244 +91,269 @@ export default function KnowledgeBasePage() {
     try {
       await api.delete(`/knowledge-bases/${selectedKB.id}/items/${itemId}`);
       setItems((prev) => prev.filter((i) => i.id !== itemId));
-    } catch (err) {
-      console.error("Failed to delete", err);
-    }
+    } catch {}
   };
 
-  if (loading) return (
-    <div className="p-8 flex items-center gap-3 text-slate-500">
-      <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-      Loading...
-    </div>
-  );
+  const inputStyle = {
+    background: "#F4EDE0",
+    border: "1px solid #DED2BB",
+    color: "#0E1B22",
+  };
+
+  const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = "#0B6E6B";
+    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(11,110,107,0.12)";
+  };
+  const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = "#DED2BB";
+    e.currentTarget.style.boxShadow = "none";
+  };
 
   return (
-    <div className="p-8">
+    <div className="flex flex-col h-full" style={{ background: "#F4EDE0" }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Knowledge Base</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage the content your AI uses to answer questions</p>
+      <div className="px-8 pt-8 pb-6 shrink-0" style={{ background: "#F4EDE0", borderBottom: "1px solid #DED2BB" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#0E1B22" }}>Knowledge Base</h1>
+            <p className="text-sm mt-0.5" style={{ color: "#6F8087" }}>Manage the content your AI uses to answer questions</p>
+          </div>
+          {!showCreateKB && (
+            <button
+              onClick={() => setShowCreateKB(true)}
+              className="inline-flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              style={{ background: "#0B6E6B" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#064F4D")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#0B6E6B")}
+            >
+              <Plus className="w-4 h-4" />
+              New Knowledge Base
+            </button>
+          )}
         </div>
-        <button
-          onClick={() => setShowCreateKB(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Knowledge Base
-        </button>
+        {showCreateKB && (
+          <div className="flex items-center gap-2 mt-4">
+            <input
+              type="text"
+              value={newKBName}
+              onChange={(e) => setNewKBName(e.target.value)}
+              placeholder="Knowledge base name..."
+              autoFocus
+              className="flex-1 max-w-xs rounded-xl px-3 py-2 text-sm outline-none transition-all"
+              style={inputStyle}
+              onFocus={inputFocus}
+              onBlur={inputBlur}
+              onKeyDown={(e) => e.key === "Enter" && createKB()}
+            />
+            <button onClick={createKB} className="inline-flex items-center gap-1.5 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              style={{ background: "#0B6E6B" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#064F4D")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#0B6E6B")}>
+              <Check className="w-3.5 h-3.5" /> Create
+            </button>
+            <button onClick={() => { setShowCreateKB(false); setNewKBName(""); }}
+              className="p-2 rounded-lg transition-colors" style={{ color: "#6F8087" }}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Create KB form */}
-      {showCreateKB && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 flex gap-3 shadow-sm">
-          <input
-            type="text"
-            value={newKBName}
-            onChange={(e) => setNewKBName(e.target.value)}
-            placeholder="Knowledge base name..."
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            onKeyDown={(e) => e.key === "Enter" && createKB()}
-          />
-          <button
-            onClick={createKB}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-          >
-            Create
-          </button>
-          <button
-            onClick={() => setShowCreateKB(false)}
-            className="px-4 py-2 text-slate-500 text-sm hover:text-slate-700"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {knowledgeBases.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <BookOpen className="w-12 h-12 text-slate-300 mb-4" />
-          <p className="text-slate-500 font-medium">No knowledge bases yet</p>
-          <p className="text-slate-400 text-sm mt-1">Create one to start adding your docs</p>
-        </div>
-      ) : (
-        <div className="flex gap-6">
-          {/* KB List Sidebar */}
-          <div className="w-64 shrink-0 bg-white rounded-xl border border-slate-200 p-2 self-start">
-            {knowledgeBases.map((kb) => (
-              <button
-                key={kb.id}
-                onClick={() => setSelectedKB(kb)}
-                className={`w-full text-left rounded-lg px-3 py-2.5 cursor-pointer text-sm transition-all ${
-                  selectedKB?.id === kb.id
-                    ? "bg-indigo-50 text-indigo-900 font-medium border-l-2 border-indigo-600 pl-2.5"
-                    : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <p className="font-medium truncate">{kb.name}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {formatRelativeTime(kb.created_at)}
-                </p>
-              </button>
-            ))}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-3" style={{ color: "#6F8087" }}>
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#0B6E6B" }} />
+              <span className="text-sm">Loading knowledge bases...</span>
+            </div>
           </div>
-
-          {/* KB Content */}
-          <div className="flex-1 min-w-0">
-            {selectedKB && (
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <h2 className="text-lg font-semibold text-slate-900">{selectedKB.name}</h2>
-                  <div className="flex gap-2 ml-auto">
+        ) : knowledgeBases.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "#ECE2CF" }}>
+              <BookOpen className="w-7 h-7" style={{ color: "#DED2BB" }} />
+            </div>
+            <p className="font-semibold mb-1" style={{ color: "#0E1B22" }}>No knowledge bases yet</p>
+            <p className="text-sm mb-6 max-w-xs leading-relaxed" style={{ color: "#6F8087" }}>
+              Create a knowledge base to start adding your docs, URLs, and text content.
+            </p>
+            <button
+              onClick={() => setShowCreateKB(true)}
+              className="inline-flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              style={{ background: "#0B6E6B" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#064F4D")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#0B6E6B")}
+            >
+              <Plus className="w-4 h-4" /> Create first knowledge base
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* KB Sidebar */}
+            <div className="w-64 flex flex-col shrink-0 overflow-auto" style={{ background: "rgba(255,255,255,0.5)", borderRight: "1px solid #DED2BB" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid #DED2BB" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#6F8087" }}>
+                  Bases · {knowledgeBases.length}
+                </p>
+              </div>
+              <div className="flex-1 p-2">
+                {knowledgeBases.map((kb) => {
+                  const isActive = selectedKB?.id === kb.id;
+                  return (
                     <button
-                      onClick={() => setShowAddContent("text")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg font-medium transition-all ${
-                        showAddContent === "text"
-                          ? "bg-indigo-600 text-white"
-                          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
+                      key={kb.id}
+                      onClick={() => setSelectedKB(kb)}
+                      className="w-full text-left rounded-xl px-3 py-2.5 transition-all flex flex-col gap-0.5 relative mb-0.5"
+                      style={{
+                        background: isActive ? "#E4F1EF" : "transparent",
+                        border: isActive ? "1px solid #0B6E6B33" : "1px solid transparent",
+                      }}
                     >
-                      <FileText className="w-3.5 h-3.5" /> Text
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full" style={{ background: "#F26A4F" }} />
+                      )}
+                      <p className="font-semibold text-sm truncate" style={{ color: isActive ? "#0B6E6B" : "#0E1B22" }}>
+                        {kb.name}
+                      </p>
+                      <p className="text-xs" style={{ color: "#6F8087" }}>{formatRelativeTime(kb.created_at)}</p>
                     </button>
-                    <button
-                      onClick={() => setShowAddContent("url")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg font-medium transition-all ${
-                        showAddContent === "url"
-                          ? "bg-indigo-600 text-white"
-                          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <Globe className="w-3.5 h-3.5" /> URL
-                    </button>
-                    <label className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg font-medium cursor-pointer transition-all border border-slate-200 text-slate-600 hover:bg-slate-50`}>
-                      <Upload className="w-3.5 h-3.5" /> PDF
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
-                      />
-                    </label>
-                  </div>
-                </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                {showAddContent === "text" && (
-                  <div className="border border-slate-200 rounded-xl p-4 mb-6 space-y-3 bg-slate-50">
-                    <input
-                      type="text"
-                      value={textTitle}
-                      onChange={(e) => setTextTitle(e.target.value)}
-                      placeholder="Title"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    />
-                    <textarea
-                      value={textContent}
-                      onChange={(e) => setTextContent(e.target.value)}
-                      placeholder="Paste your text or markdown content here..."
-                      rows={8}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={addText}
-                        disabled={uploading}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                      >
-                        {uploading ? "Processing..." : "Add Content"}
-                      </button>
-                      <button
-                        onClick={() => setShowAddContent(null)}
-                        className="px-4 py-2 text-slate-500 text-sm hover:text-slate-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {showAddContent === "url" && (
-                  <div className="border border-slate-200 rounded-xl p-4 mb-6 space-y-3 bg-slate-50">
-                    <textarea
-                      value={urls}
-                      onChange={(e) => setUrls(e.target.value)}
-                      placeholder="Enter URLs (one per line)"
-                      rows={4}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={crawlUrls}
-                        disabled={uploading}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                      >
-                        {uploading ? "Crawling..." : "Crawl URLs"}
-                      </button>
-                      <button
-                        onClick={() => setShowAddContent(null)}
-                        className="px-4 py-2 text-slate-500 text-sm hover:text-slate-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {uploading && (
-                  <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                    Processing content...
-                  </div>
-                )}
-
-                {/* Items List */}
-                {items.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
-                    <p className="text-slate-400 text-sm">No content yet. Add text, crawl URLs, or upload PDFs.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-xl border border-slate-200 p-4 flex items-center justify-between hover:border-slate-300 transition-all"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
-                            {item.source_type === "pdf" ? (
-                              <FileText className="w-4 h-4 text-red-500" />
-                            ) : item.source_type === "url" ? (
-                              <Globe className="w-4 h-4 text-blue-500" />
-                            ) : (
-                              <FileText className="w-4 h-4 text-slate-500" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">{item.title || "Untitled"}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {item.chunk_count} chunks &middot;{" "}
-                              <span className={item.status === "ready" ? "text-emerald-600" : "text-amber-600"}>
-                                {item.status}
-                              </span>
-                              {" "}&middot; {formatRelativeTime(item.created_at)}
-                            </p>
-                          </div>
-                        </div>
+            {/* Content area */}
+            <div className="flex-1 overflow-auto p-8">
+              {selectedKB && (
+                <div className="max-w-3xl">
+                  <div className="flex items-center gap-3 mb-6">
+                    <h2 className="text-lg font-bold flex-1" style={{ color: "#0E1B22" }}>{selectedKB.name}</h2>
+                    <div className="flex items-center gap-2">
+                      {[
+                        { key: "text", icon: FileText, label: "Text" },
+                        { key: "url", icon: Globe, label: "URL" },
+                      ].map(({ key, icon: Icon, label }) => (
                         <button
-                          onClick={() => deleteItem(item.id)}
-                          className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all ml-3 shrink-0"
+                          key={key}
+                          onClick={() => setShowAddContent(showAddContent === key ? null : key)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl font-medium transition-all"
+                          style={{
+                            background: showAddContent === key ? "#0B6E6B" : "rgba(255,255,255,0.8)",
+                            color: showAddContent === key ? "white" : "#324047",
+                            border: showAddContent === key ? "1px solid #0B6E6B" : "1px solid #DED2BB",
+                          }}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Icon className="w-3.5 h-3.5" /> {label}
+                        </button>
+                      ))}
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl font-medium cursor-pointer transition-all"
+                        style={{ background: "rgba(255,255,255,0.8)", color: "#324047", border: "1px solid #DED2BB" }}>
+                        <Upload className="w-3.5 h-3.5" /> PDF
+                        <input type="file" accept=".pdf" className="hidden"
+                          onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {showAddContent === "text" && (
+                    <div className="rounded-2xl p-5 mb-5 space-y-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #DED2BB", boxShadow: "0 1px 3px rgba(14,27,34,0.05)" }}>
+                      <input type="text" value={textTitle} onChange={(e) => setTextTitle(e.target.value)}
+                        placeholder="Title" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all"
+                        style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+                      <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)}
+                        placeholder="Paste your text or markdown content here..."
+                        rows={8} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all resize-none"
+                        style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+                      <div className="flex gap-2">
+                        <button onClick={addText} disabled={uploading}
+                          className="inline-flex items-center gap-1.5 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+                          style={{ background: "#0B6E6B" }}>
+                          <Check className="w-3.5 h-3.5" />
+                          {uploading ? "Processing..." : "Add Content"}
+                        </button>
+                        <button onClick={() => setShowAddContent(null)}
+                          className="px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: "#6F8087" }}>
+                          Cancel
                         </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                    </div>
+                  )}
+
+                  {showAddContent === "url" && (
+                    <div className="rounded-2xl p-5 mb-5 space-y-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #DED2BB", boxShadow: "0 1px 3px rgba(14,27,34,0.05)" }}>
+                      <p className="text-xs" style={{ color: "#6F8087" }}>Enter URLs to crawl (one per line)</p>
+                      <textarea value={urls} onChange={(e) => setUrls(e.target.value)}
+                        placeholder={"https://example.com/docs\nhttps://example.com/faq"}
+                        rows={4} className="w-full rounded-xl px-3 py-2.5 text-sm font-mono outline-none transition-all resize-none"
+                        style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+                      <div className="flex gap-2">
+                        <button onClick={crawlUrls} disabled={uploading}
+                          className="inline-flex items-center gap-1.5 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 transition-colors"
+                          style={{ background: "#0B6E6B" }}>
+                          <Globe className="w-3.5 h-3.5" />
+                          {uploading ? "Crawling..." : "Crawl URLs"}
+                        </button>
+                        <button onClick={() => setShowAddContent(null)}
+                          className="px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: "#6F8087" }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {uploading && !showAddContent && (
+                    <div className="flex items-center gap-2 text-sm mb-4" style={{ color: "#6F8087" }}>
+                      <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#0B6E6B" }} />
+                      Processing content...
+                    </div>
+                  )}
+
+                  {items.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl" style={{ background: "rgba(255,255,255,0.5)", border: "2px dashed #DED2BB" }}>
+                      <BookOpen className="w-8 h-8 mb-3" style={{ color: "#DED2BB" }} />
+                      <p className="text-sm font-medium mb-1" style={{ color: "#6F8087" }}>No content yet</p>
+                      <p className="text-xs" style={{ color: "#6F8087" }}>Add text, crawl URLs, or upload PDFs above</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {items.map((item) => (
+                        <div key={item.id}
+                          className="rounded-2xl px-5 py-4 flex items-center gap-4 transition-all group"
+                          style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #DED2BB" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#C8C8BE"; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(14,27,34,0.06)"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#DED2BB"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                            style={{ background: item.source_type === "pdf" ? "#FEF2F2" : item.source_type === "url" ? "#EFF6FF" : "#ECE2CF" }}>
+                            {item.source_type === "pdf"
+                              ? <FileText className="w-4 h-4 text-red-500" />
+                              : item.source_type === "url"
+                              ? <Globe className="w-4 h-4 text-blue-500" />
+                              : <FileText className="w-4 h-4" style={{ color: "#6F8087" }} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: "#0E1B22" }}>{item.title || "Untitled"}</p>
+                            <p className="text-xs mt-0.5" style={{ color: "#6F8087" }}>
+                              {item.chunk_count} chunks ·{" "}
+                              <span className={item.status === "ready" ? "text-emerald-500" : "text-amber-500"}>
+                                {item.status}
+                              </span>
+                              {" "}· {formatRelativeTime(item.created_at)}
+                            </p>
+                          </div>
+                          <button onClick={() => deleteItem(item.id)}
+                            className="p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all ml-2 shrink-0 hover:bg-red-50 hover:text-red-500"
+                            style={{ color: "#DED2BB" }}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ export interface User {
   full_name: string | null;
   role: string;
   tenant_id: string;
+  is_email_verified: boolean;
 }
 
 export interface Tenant {
