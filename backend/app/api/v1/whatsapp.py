@@ -70,7 +70,7 @@ async def update_inbox(
     )
     inbox = result.scalar_one_or_none()
     if not inbox:
-        raise NotFoundError("Inbox not found")
+        raise NotFoundError("Resource not found")
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(inbox, field, value)
     await db.commit()
@@ -92,7 +92,7 @@ async def delete_inbox(
     )
     inbox = result.scalar_one_or_none()
     if not inbox:
-        raise NotFoundError("Inbox not found")
+        raise NotFoundError("Resource not found")
     await db.delete(inbox)
     await db.commit()
     return {"detail": "Deleted"}
@@ -210,17 +210,17 @@ async def reply_to_whatsapp(
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
-        raise NotFoundError("WhatsApp conversation not found")
+        raise NotFoundError("Resource not found")
 
     if not conversation.whatsapp_inbox_id:
-        raise NotFoundError("No WhatsApp inbox linked to this conversation")
+        raise NotFoundError("Resource not found")
 
     inbox_result = await db.execute(
         select(WhatsAppInbox).where(WhatsAppInbox.id == conversation.whatsapp_inbox_id)
     )
     inbox = inbox_result.scalar_one_or_none()
     if not inbox:
-        raise NotFoundError("Inbox not found")
+        raise NotFoundError("Resource not found")
 
     agent_msg = Message(
         conversation_id=conversation.id,
