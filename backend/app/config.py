@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from typing import List
 import json
+import os
 
 
 class Settings(BaseSettings):
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./data/chroma"
 
     # JWT
-    jwt_secret_key: str = "change-me-to-a-random-secret-key"
+    jwt_secret_key: str = os.environ.get("JWT_SECRET_KEY") or raise Exception("JWT_SECRET_KEY must be set in the environment")
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
