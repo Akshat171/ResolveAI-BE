@@ -3,6 +3,7 @@ from __future__ import annotations
 from openai import AsyncOpenAI
 
 from app.config import settings
+from functools import lru_cache
 
 openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
 
@@ -12,7 +13,9 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
     all_embeddings = []
     batch_size = 100
 
-    for i in range(0, len(texts), batch_size):
+    @lru_cache(maxsize=None)  # Enable caching for embedding results
+    async def cached_get_embeddings(texts: list[str]) -> list[list[float]]:
+        for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         response = await openai_client.embeddings.create(
             input=batch,
